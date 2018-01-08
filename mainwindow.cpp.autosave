@@ -1,0 +1,228 @@
+﻿#include "mainwindow.h"
+#include "ui_mainwindow.h"
+
+MainWindow::MainWindow(QWidget *parent) :
+    QMainWindow(parent),
+    ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
+    MenuCreate();
+    imageShowWidget = new QWidget(this);
+    setCentralWidget(imageShowWidget);
+    mainLayout = new QVBoxLayout();
+    scene = new QGraphicsScene(this);
+    view = new QGraphicsView(scene,this);
+
+    //imageLabel = new QLabel();
+    imageShowWidget->setLayout(mainLayout);
+    mainLayout->addWidget(view);
+    //mainLayout->addWidget(imageLabel);
+}
+
+MainWindow::~MainWindow()
+{
+    delete ui;
+}
+
+
+//创建导航菜单
+void MainWindow::MenuCreate()
+{
+    //文件菜单
+    FileMenu = ui->menuBar->addMenu(tr("File(&F)"));
+    OpenFileAction = FileMenu->addAction(tr("Open(&O)"));
+    SaveFileAction = FileMenu->addAction(tr("Save(&S)"));
+    FileMenu->addSeparator();
+    QuitAction = FileMenu->addAction(tr("Quit(&Q)"));
+    img = new QImage();
+    EnlargeAction = new QAction();
+    EnlargeAction->setIcon(QIcon(":/new/prefix1/image/large.png"));
+    ShrinkAction = new QAction();
+    ShrinkAction->setIcon(QIcon(":/new/prefix1/image/small.png"));
+    ui->mainToolBar->addAction(EnlargeAction);
+    ui->mainToolBar->addAction(ShrinkAction);
+    QMatrix matrix;
+
+    //图像菜单
+    ImageMenu = ui->menuBar->addMenu(tr("Image(&I)"));
+    ImageModeMenu = new QMenu(tr("Mode"));
+    ImageMenu->addMenu(ImageModeMenu);
+    GreyImageAction = ImageModeMenu->addAction(tr("GreyImage(&G)"));
+    RGBImageAction = ImageModeMenu->addAction(tr("RGBImage"));
+
+
+
+
+    connect(OpenFileAction,SIGNAL(triggered(bool)),this,SLOT(OpenImage()));
+    connect(EnlargeAction,SIGNAL(triggered(bool)),this,SLOT(ImageInZoom()));
+    connect(ShrinkAction,SIGNAL(triggered(bool)),this,SLOT(ImageReduce()));
+    connect(SaveFileAction,SIGNAL(triggered(bool)),this,SLOT(SaveImage()));
+    connect(GreyImageAction,SIGNAL(triggered(bool)),this,SLOT(ShowGreyImage()));
+}
+
+
+//打开图片
+void MainWindow::OpenImage()
+{
+    QString filename;
+    filename=QFileDialog::getOpenFileName(this,
+                                          tr("选择图像"),
+                                          "",
+                                          tr("Images (*.png *.bmp *.jpg *.tif *.GIF )"));
+    if(filename.isEmpty())
+    {
+        QMessageBox msgBox;
+        msgBox.setText(tr("Image Data Is Null"));
+        msgBox.exec();
+    }
+    else
+    {
+        if(!(img->load(filename)))
+                           //加载图像
+        {
+            QMessageBox::about(NULL,"失败",tr("打开图像失败"));
+            delete img;
+            return;
+        }
+        scene->addPixmap(QPixmap::fromImage(*img));
+        //imageLabel->setPixmap(QPixmap::fromImage(*img));
+     }
+}
+
+
+//放大图片
+void MainWindow::ImageInZoom()
+{
+    QPixmap *pix = new QPixmap(":/new/prefix1/image/large20.png");
+    QCursor *my = new QCursor(*pix);
+    setCursor(*my);
+    imageShowWidget->setFocus();
+    ButtonId = 1;
+
+
+}
+
+
+//缩小图片
+void MainWindow::ImageReduce()
+{
+    QCursor *my = new QCursor(QPixmap(":/new/prefix1/image/small20.png"));
+    setCursor(*my);
+    imageShowWidget->setFocus();
+    ButtonId = 2;
+}
+
+void MainWindow::SaveImage()
+{
+    QString filename = QFileDialog::getSaveFileName(this,
+        tr("Save Image"),
+        "",
+        tr("*.bmp;; *.png;; *.jpg;; *.tif;; *.GIF")); //选择路径
+    if(filename.isEmpty())
+    {
+        return;
+    }
+    else
+    {
+        if(! ( img->save(filename) ) ) //保存图像
+        {
+            QMessageBox::information(this,
+                tr("Failed to save the image"),
+                tr("Failed to save the image!"));
+            return;
+        }
+    }
+}
+
+
+//鼠标点击事件
+void MainWindow::mousePressEvent(QMouseEvent *event)
+{
+    QRect *paintRegion =  new QRect(9,66,view->width()+9,66+view->height());
+    qDebug()<<"view pos is x="<<view->x()<<"*****y="<<view->y();
+    qDebug()<<"view size is x="<<view->width()<<"*****y="<<view->height();
+    qDebug()<<"mouse pos is x="<<event->pos().x()<<"*****y="<<event->pos().y();
+    switch(ButtonId)
+    {
+    case 1:
+
+        if(paintRegion->contains(event->pos()))
+        {
+           view->scale(1.5, 1.5);
+           view->centerOn(event->pos().x()-9,event->pos().y()-66);
+           view->show();
+           /*
+           matrix.scale(1.41,1.41);
+           *img = img->transformed(matrix);
+           imageLabel->setPixmap(QPixmap::fromImage(*img));
+           */
+        }
+
+        break;
+    case 2:
+        view->scale(0.71, 0.71);
+        view->centerOn(event->pos());
+        view->show();
+        /*
+        matrix.scale(0.71,0.71);
+        *img = img->transformed(matrix);
+        imageLabel->setPixmap(QPixmap::fromImage(*img));
+        */
+        break;
+    default:
+        break;
+
+    }
+
+}
+
+
+QImage * MainWindow::GreyModeImage(QImage* origin)
+{
+    QImage * newImage = new QImage(origin->width(), origin->height(), QImage::Format_ARGB32);
+
+        QRgb * line;
+
+        for(int y = 0; y<newImage->height(); y++){
+            QRgb * line = (QRgb *)origin->scanLine(y);
+
+            for(int x = 0; x<newImage->width(); x++){
+                int average = (qRed(line[x]) + qGreen(line[x]) + qRed(line[x]))/3;
+                newImage->setPixel(x,y, qRgb(average, average, average));
+            }
+
+        }
+
+        return newImage;
+}
+
+void MainWindow::ShowGreyImage()
+{
+    QImage *newImage = GreyModeImage(img);
+    *img = *newImage;
+    scene->addPixmap(QPixmap::fromImage(*newImage));
+}
+
+QImage* MainWindow::setBrightness(QImage *img,int addBrightValue){
+    int red,blue,green;
+    int width = img->width();
+    int height = img->height();
+    QImage *newImg = QImage(width,height,QImage::Format_ARGB32);
+    unsigned int *data = (unsigned int *)img->bits();
+    for(int i=0;i<width;i++)
+    {
+        for(int j=0;j<height;j++)
+        {
+            red= qRed(data[i])+ addBrightValue;  
+            red = (red < 0x00) ? 0x00 : (red > 0xff) ? 0xff : red;  
+            green= qGreen(data[i]) + addBrightValue;  
+            green = (green < 0x00) ? 0x00 : (green > 0xff) ? 0xff : green;  
+            blue= qBlue(data[i]) + addBrightValue;  
+            blue =  (blue  < 0x00) ? 0x00 : (blue  > 0xff) ? 0xff : blue ;  
+            newImg->setPixel(i,j,qRgb(red,green,blue));
+        }
+    }
+    return newImg;
+    
+}
+
